@@ -173,4 +173,46 @@ describe("Order repository test", () => {
     }).rejects.toThrow("Order not found");
   });
 
+  it("should find all orders", async () => {
+    const customerRepository = new CustomerRepository();
+    const customer = new Customer("123", "Customer 1");
+    const address = new Address("Street 1", 1, "Zipcode 1", "City 1");
+    customer.changeAddress(address);
+    await customerRepository.create(customer);
+
+    const productRepository = new ProductRepository();
+    const product1 = new Product("123", "Product 1", 10);
+    const product2 = new Product("456", "Product 2", 20);
+    await productRepository.create(product1);
+    await productRepository.create(product2);
+
+    const ordemItem1 = new OrderItem(
+      "1",
+      product1.name,
+      product1.price,
+      product1.id,
+      2
+    );
+    const ordemItem2 = new OrderItem(
+      "2",
+      product2.name,
+      product2.price,
+      product2.id,
+      1
+    );
+
+    const order1 = new Order("123", customer.id, [ordemItem1]);
+    const order2 = new Order("456", customer.id, [ordemItem2]);
+
+    const orderRepository = new OrderRepository();
+    await orderRepository.create(order1);
+    await orderRepository.create(order2);
+
+    const orders = await orderRepository.findAll();
+
+    expect(orders).toHaveLength(2);
+    expect(orders).toContainEqual(order1);
+    expect(orders).toContainEqual(order2);
+  });
+
 });
