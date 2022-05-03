@@ -1,5 +1,9 @@
 import { Sequelize } from "sequelize-typescript";
+import EventDispatcher from "../../../../domain/@shared/event/event-dispatcher";
 import Customer from "../../../../domain/customer/entity/customer";
+import CustomerCreatedEvent from "../../../../domain/customer/event/customer-created-event";
+import EnviaConsoleLog1Handler from "../../../../domain/customer/event/handler/envia-console-log1.handler";
+import EnviaConsoleLog2Handler from "../../../../domain/customer/event/handler/envia-console-log2.handler";
 import Address from "../../../../domain/customer/value-object/address";
 import CustomerModel from "./customer.model";
 import CustomerRepository from "./customer.repository";
@@ -23,12 +27,33 @@ describe("Customer repository test", () => {
     await sequelize.close();
   });
 
-  it("should create a customer", async () => {
+  it("should create a customer and trigger event", async () => {
+    const eventDispatcher = new EventDispatcher();
+    const eventHandler1 = new EnviaConsoleLog1Handler();
+    const spyEventHandler1 = jest.spyOn(eventHandler1, "handle");
+    const eventHandler2 = new EnviaConsoleLog2Handler();
+    const spyEventHandler2 = jest.spyOn(eventHandler2, "handle");
+    const eventName = "CustomerCreatedEvent";
+
+    eventDispatcher.register(eventName, eventHandler1);
+    eventDispatcher.register(eventName, eventHandler2);
+
+    expect(
+      eventDispatcher.getEventHandlers[eventName][0]
+    ).toMatchObject(eventHandler1);
+    expect(
+      eventDispatcher.getEventHandlers[eventName][1]
+    ).toMatchObject(eventHandler2);
+
     const customerRepository = new CustomerRepository();
     const customer = new Customer("123", "Customer 1");
     const address = new Address("Street 1", 1, "Zipcode 1", "City 1");
     customer.Address = address;
+
+    const customerCreatedEvent = new CustomerCreatedEvent(customer);
+
     await customerRepository.create(customer);
+    eventDispatcher.notify(customerCreatedEvent);
 
     const customerModel = await CustomerModel.findOne({ where: { id: "123" } });
 
@@ -42,6 +67,8 @@ describe("Customer repository test", () => {
       zipcode: address.zip,
       city: address.city,
     });
+    expect(spyEventHandler1).toHaveBeenCalled();
+    expect(spyEventHandler2).toHaveBeenCalled();
   });
 
   it("should update a customer", async () => {
