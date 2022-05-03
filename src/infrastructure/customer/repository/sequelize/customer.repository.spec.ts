@@ -2,6 +2,7 @@ import { Sequelize } from "sequelize-typescript";
 import EventDispatcher from "../../../../domain/@shared/event/event-dispatcher";
 import Customer from "../../../../domain/customer/entity/customer";
 import CustomerCreatedEvent from "../../../../domain/customer/event/customer-created-event";
+import EnviaConsoleLogHandler from "../../../../domain/customer/event/handler/envia-console-log.handler";
 import EnviaConsoleLog1Handler from "../../../../domain/customer/event/handler/envia-console-log1.handler";
 import EnviaConsoleLog2Handler from "../../../../domain/customer/event/handler/envia-console-log2.handler";
 import Address from "../../../../domain/customer/value-object/address";
@@ -71,7 +72,18 @@ describe("Customer repository test", () => {
     expect(spyEventHandler2).toHaveBeenCalled();
   });
 
-  it("should update a customer", async () => {
+  it("should update a customer and trigger event", async () => {
+    const eventDispatcher = new EventDispatcher();
+    const eventHandler = new EnviaConsoleLogHandler();
+    const spyEventHandler = jest.spyOn(eventHandler, "handle");
+    const eventName = "CustomerCreatedEvent";
+
+    eventDispatcher.register(eventName, eventHandler);
+
+    expect(
+      eventDispatcher.getEventHandlers[eventName][0]
+    ).toMatchObject(eventHandler);
+
     const customerRepository = new CustomerRepository();
     const customer = new Customer("123", "Customer 1");
     const address = new Address("Street 1", 1, "Zipcode 1", "City 1");
@@ -79,6 +91,12 @@ describe("Customer repository test", () => {
     await customerRepository.create(customer);
 
     customer.changeName("Customer 2");
+    const address2 = new Address("Street 2", 2, "Zipcode 2", "City 2")
+    customer.changeAddress(address2);
+
+    const customerCreatedEvent = new CustomerCreatedEvent(customer);
+    eventDispatcher.notify(customerCreatedEvent);
+
     await customerRepository.update(customer);
     const customerModel = await CustomerModel.findOne({ where: { id: "123" } });
 
@@ -87,11 +105,12 @@ describe("Customer repository test", () => {
       name: customer.name,
       active: customer.isActive(),
       rewardPoints: customer.rewardPoints,
-      street: address.street,
-      number: address.number,
-      zipcode: address.zip,
-      city: address.city,
+      street: address2.street,
+      number: address2.number,
+      zipcode: address2.zip,
+      city: address2.city,
     });
+    expect(spyEventHandler).toHaveBeenCalled();
   });
 
   it("should find a customer", async () => {
